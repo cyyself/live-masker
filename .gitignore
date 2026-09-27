@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+data/
+bin/
+models/*.pt
+models/*.onnx
+*.egg-info/

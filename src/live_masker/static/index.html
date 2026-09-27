@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%226%22 fill=%22%23ef4444%22/%3E%3C/svg%3E">
+<title>Live Masker</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#262b35;--fg:#e7e9ee;--mut:#8a93a3;--acc:#4f8cff;--ok:#2fbf71;--warn:#f0a020;--bad:#ef4444;--r:12px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:10;background:rgba(15,17,21,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 16px}
+.hrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1300px;margin:0 auto}
+h1{font-size:17px;margin:0 8px 0 0;font-weight:650}
+h2{font-size:15px;margin:0 0 12px;font-weight:650;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+main{max-width:1300px;margin:0 auto;padding:16px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:#222733;font-size:13px;color:var(--mut);white-space:nowrap}
+.pill b{color:var(--fg);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+button,select,input{font:inherit;color:var(--fg)}
+button{background:#232936;border:1px solid var(--line);border-radius:9px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:#3a4252}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button.danger{background:transparent;color:var(--bad);border-color:#4a2530}
+button.sm{padding:4px 10px;font-size:13px}
+input[type=text],input[type=number],input[type=password],select{background:#10131a;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.mut{color:var(--mut);font-size:13px}
+.controls{display:grid;grid-template-columns:1.3fr 1.3fr 1fr 1fr;gap:10px}
+@media(max-width:560px){.controls{grid-template-columns:1fr 1fr}}
+#airBtn.on{background:#1f2937;border-color:#6b7280;color:#fff}
+#airBtn.off{background:#2563eb;border-color:#2563eb;color:#fff}
+.big{font-size:17px;font-weight:700;padding:16px;border-radius:12px}
+#pauseBtn.live{background:#b91c1c;border-color:#b91c1c;color:#fff}
+#pauseBtn.paused{background:var(--ok);border-color:var(--ok);color:#06240f}
+.tog.on{background:#3b2a0a;border-color:var(--warn);color:var(--warn)}
+.preview{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9}
+.preview video,.preview img{width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0}
+.preview .badge{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.65);padding:3px 8px;border-radius:6px;font-size:12px;z-index:2}
+.preview .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:4px 10px;font-size:12px;background:transparent;color:var(--mut)}
+.seg button.on{background:#2a3242;color:var(--fg)}
+.dest{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}
+.dest .url{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--mut);word-break:break-all}
+.tag{font-size:11px;padding:2px 7px;border-radius:5px;font-weight:700;letter-spacing:.03em}
+.tag.raw{background:#4a1d1d;color:#ff9b9b}.tag.blurred{background:#173a2a;color:#7ee2a8}
+.switch{position:relative;width:46px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:#343b48;border-radius:99px;transition:.15s;cursor:pointer}
+.switch span:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}
+.switch input:checked+span{background:var(--ok)}
+.switch input:checked+span:before{transform:translateX(20px)}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg);margin:0}
+code,.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#10131a;border:1px solid var(--line);border-radius:6px;padding:6px 8px;word-break:break-all;display:block}
+details summary{cursor:pointer;color:var(--mut);font-size:13px}
+pre.log{font-size:11px;color:var(--mut);white-space:pre-wrap;margin:6px 0 0;max-height:140px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+td a{color:var(--acc)}
+#zoneWrap{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9;touch-action:none;user-select:none}
+#zoneWrap img{width:100%;height:100%;object-fit:fill;display:block;pointer-events:none}
+#zoneWrap .z{position:absolute;border:2px solid var(--warn);background:rgba(240,160,32,.25)}
+#zoneWrap .z button{position:absolute;right:2px;top:2px;padding:0 6px;font-size:12px;background:#000a}
+.warnbox{border:1px solid #5a2a2a;background:#2a1515;color:#ffb4b4;border-radius:8px;padding:8px 10px;font-size:13px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <h1>Live Masker</h1>
+    <span class="pill"><span class="dot" id="dIngest"></span>Glasses <b id="tIngest">–</b></span>
+    <span class="pill" title="measured input: resolution / fps / bitrate">In <b id="tIn">–</b></span>
+    <span class="pill"><span class="dot" id="dMode"></span>Output <b id="tMode">–</b></span>
+    <span class="pill">FPS <b id="tFps">–</b></span>
+    <span class="pill">Detect <b id="tDet">–</b></span>
+    <span class="pill">Latency <b id="tLat">–</b></span>
+    <span class="pill" id="pErr" title="detector/output errors">Errors <b id="tErr">0</b></span>
+    <span class="pill">Model <b id="tModel">–</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="warnbox hidden" id="secErr"></div>
+  <section class="card">
+    <div class="controls">
+      <button id="airBtn" class="big">…</button>
+      <button id="pauseBtn" class="big">…</button>
+      <button id="blurBtn" class="big tog">Full blur</button>
+      <button id="muteBtn" class="big tog">Mute</button>
+    </div>
+    <p class="mut" id="pauseHint" style="margin:10px 0 0"></p>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Raw <span class="tag raw">PRIVATE</span><span style="flex:1"></span><span class="seg" data-prev="raw"></span></h2>
+      <div class="preview" id="pv-raw"><div class="empty">No signal</div></div>
+      <p class="mut" id="rawInfo" style="margin:8px 0 0"></p>
+    </div>
+    <div class="card">
+      <h2>Public <span class="tag blurred">MASKED</span><span style="flex:1"></span><span class="seg" data-prev="blurred"></span></h2>
+      <div class="preview" id="pv-blurred"><div class="empty">No output</div></div>
+      <p class="mut" id="outInfo" style="margin:8px 0 0"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Destinations</h2>
+    <div id="dests"></div>
+    <details id="addBox">
+      <summary>+ Add destination</summary>
+      <div style="margin-top:12px" class="fields">
+        <div><label>Preset</label><select id="nPreset">
+          <option value="">Custom</option>
+          <option value="rtmp://a.rtmp.youtube.com/live2">YouTube</option>
+          <option value="rtmp://live.twitch.tv/app">Twitch</option>
+          <option value="rtmps://live-api-s.facebook.com:443/rtmp">Facebook</option>
+          <option value="rtmp://live-push.bilivideo.com/live-bvc">Bilibili</option>
+        </select></div>
+        <div><label>Name</label><input type="text" id="nName" placeholder="YouTube"></div>
+        <div style="grid-column:span 2;min-width:0"><label>Server URL</label><input type="text" id="nServer" placeholder="rtmp://a.rtmp.youtube.com/live2"></div>
+        <div><label>Stream key</label><input type="password" id="nKey" autocomplete="off"></div>
+        <div><label>Source</label><select id="nSource"><option value="blurred">Masked (recommended)</option><option value="raw">Raw — unmasked!</option></select></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="addDest">Add</button><span class="mut">Added destinations start disabled. Switch them on when you're ready.</span></div>
+    </details>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Masking</h2>
+      <div class="row" style="margin-bottom:12px">
+        <label class="chk"><input type="checkbox" data-p="faces"> Faces</label>
+        <span id="screenChecks" class="row"></span>
+      </div>
+      <div class="fields">
+        <div><label>Face confidence <span data-v="face_conf"></span></label><input type="range" min="0.05" max="0.8" step="0.01" data-p="face_conf"></div>
+        <div><label>Phone/screen confidence <span data-v="obj_conf"></span></label><input type="range" min="0.05" max="0.8" step="0.01" data-p="obj_conf"></div>
+        <div><label>Padding <span data-v="pad"></span></label><input type="range" min="0" max="1" step="0.05" data-p="pad"></div>
+        <div><label>Keep blurring after lost (s) <span data-v="hold_seconds"></span></label><input type="range" min="0" max="5" step="0.1" data-p="hold_seconds"></div>
+        <div><label>Grow while lost (/s) <span data-v="grow_per_s"></span></label><input type="range" min="0" max="2" step="0.1" data-p="grow_per_s"></div>
+        <div><label>Min box size (px) <span data-v="min_size"></span></label><input type="range" min="0" max="200" step="5" data-p="min_size"></div>
+        <div><label>Face model input</label><select data-p="face_imgsz"><option>640</option><option>960</option><option>1280</option><option>1600</option></select></div>
+        <div><label>Screen model input</label><select data-p="obj_imgsz"><option>640</option><option>960</option><option>1280</option></select></div>
+        <div><label>Style</label><select data-p="blur_mode"><option value="blur">Blur</option><option value="pixelate">Pixelate</option><option value="solid">Black box</option></select></div>
+        <div><label>Paused text</label><input type="text" data-p="paused_text" maxlength="60"></div>
+        <div><label>Signal-lost text</label><input type="text" data-p="lost_text" maxlength="60"></div>
+      </div>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" data-p="stop_raw_when_paused"> Stop raw destinations while paused</label>
+      <p class="mut">Lower confidence = blur more (more false positives, fewer leaks). Detections blur immediately; lost objects keep being blurred, following their motion, for the hold time.</p>
+    </div>
+
+    <div class="card">
+      <h2>Always-blur zones</h2>
+      <p class="mut" style="margin-top:0">Drag on the frame to add a zone (e.g. where your handlebar phone mount usually appears). Zones apply to every frame.</p>
+      <div id="zoneWrap"><img id="zoneImg" alt=""></div>
+      <div class="row" style="margin-top:10px"><button id="zoneSnap" class="sm">Refresh snapshot</button><button id="zoneClear" class="sm danger">Clear zones</button><span class="mut" id="zoneCount"></span></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Glasses ingest</h2>
+      <label>Full RTMP URL (paste into the Rokid live-stream setting)</label>
+      <div class="row" style="flex-wrap:nowrap"><code id="ingUrl" style="flex:1"></code><button class="sm" data-copy="ingUrl">Copy</button></div>
+      <div class="fields" style="margin-top:10px">
+        <div><label>Server</label><code id="ingSrv"></code></div>
+        <div><label>Stream key</label><code id="ingKey"></code></div>
+      </div>
+      <div class="fields" style="margin-top:12px">
+        <div><label>Public host / IP (for URLs + WebRTC)</label><input type="text" id="pubHost" placeholder="auto"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="sm" id="saveHost">Save host</button><button class="sm danger" id="regenKey">New stream key</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Recording</h2>
+      <div class="row">
+        <label class="chk"><input type="checkbox" data-r="raw"> Record original</label>
+        <label class="chk"><input type="checkbox" data-r="blurred"> Record masked</label>
+        <span class="mut">Segment <input type="number" data-r="segment_minutes" min="1" style="width:70px;display:inline-block"> min</span>
+      </div>
+      <div class="row" style="margin-top:10px;flex-wrap:nowrap">
+        <input type="text" id="recPath" placeholder="default: data/recordings" style="flex:1">
+        <button class="sm" id="saveRecPath">Set folder</button>
+      </div>
+      <div class="warnbox hidden" id="diskWarn" style="margin-top:8px"></div>
+      <p class="mut" id="recStatus"></p>
+      <p class="mut">Recording is independent of Pause / Full blur: the original is always saved from the first packet of every connection.</p>
+      <div style="max-height:260px;overflow:auto"><table><thead><tr><th>File</th><th>Size</th><th></th></tr></thead><tbody id="recList"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Output encoding</h2>
+    <div class="fields">
+      <div><label>Width</label><input type="number" data-o="width"></div>
+      <div><label>Height</label><input type="number" data-o="height"></div>
+      <div><label>FPS</label><input type="number" data-o="fps"></div>
+      <div><label>Video kbps</label><input type="number" data-o="bitrate_kbps"></div>
+      <div><label>Audio kbps</label><input type="number" data-o="audio_kbps"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button id="saveOut">Apply</button><span class="mut">Restarts the encoder (a second or two of interruption).</span></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+let S = null, formsFilled = false;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...opts,
+                               body: opts.body && typeof opts.body !== 'string' ? JSON.stringify(opts.body) : opts.body});
+  if (!r.ok) { const t = await r.text(); alert(`${r.status}: ${t}`); throw new Error(t); }
+  return r.json();
+}
+const post = (p, b) => api(p, {method: 'POST', body: b});
+const fmtBytes = n => n > 1e9 ? (n/1e9).toFixed(2)+' GB' : n > 1e6 ? (n/1e6).toFixed(1)+' MB' : (n/1e3).toFixed(0)+' kB';
+const fmtDur = s => s >= 3600 ? `${Math.floor(s/3600)}h${String(Math.floor(s%3600/60)).padStart(2,'0')}m` : s >= 60 ? `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s` : `${s}s`;
+const fmtRate = k => k >= 1000 ? (k / 1000).toFixed(1) + ' Mbit/s' : Math.round(k) + ' kbit/s';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ------------------------------------------------------------------ state polling
+async function poll() {
+  try { S = await (await fetch('/api/state')).json(); render(); }
+  catch (e) { $('#tMode').textContent = 'server unreachable'; $('#dMode').className = 'dot bad'; }
+  setTimeout(poll, 1000);
+}
+
+function render() {
+  const p = S.processor, pr = S.privacy;
+  $('#secErr').classList.toggle('hidden', !S.security_error);
+  $('#secErr').textContent = S.security_error ? 'SECURITY: ' + S.security_error : '';
+  $('#tIngest').textContent = S.ingest.online ? 'online' : 'offline';
+  $('#dIngest').className = 'dot ' + (S.ingest.online ? 'ok' : 'bad');
+  const modeTxt = {live: 'LIVE (masked)', paused: 'PAUSED', lost: 'signal lost', waiting: 'waiting', starting: 'starting'}[p.mode] || p.mode;
+  $('#tMode').textContent = pr.full_blur && p.mode === 'live' ? 'LIVE (full blur)' : modeTxt;
+  $('#dMode').className = 'dot ' + ({live: 'ok', paused: 'warn'}[p.mode] || 'bad');
+  $('#tFps').textContent = p.fps;
+  const ii = S.ingest.info || {};
+  $('#tIn').textContent = S.ingest.online && ii.width ? `${ii.height}p${Math.round(ii.fps) || '?'} · ${fmtRate(S.ingest.bitrate_kbps)}` : '–';
+  $('#tDet').textContent = p.det_ms + ' ms';
+  $('#tLat').textContent = p.latency_ms + ' ms';
+  $('#tErr').textContent = p.errors;
+  $('#tModel').textContent = p.detector;
+
+  const ab = $('#airBtn');
+  ab.textContent = pr.on_air ? '■ STOP LIVE' : '● GO LIVE';
+  ab.className = 'big ' + (pr.on_air ? 'on' : 'off');
+  if (!pr.on_air) { $('#tMode').textContent = 'OFF AIR'; $('#dMode').className = 'dot'; }
+  const pb = $('#pauseBtn');
+  pb.textContent = pr.paused ? '▶ RESUME LIVE' : '❚❚ PAUSE LIVE';
+  pb.className = 'big ' + (pr.paused ? 'paused' : 'live');
+  $('#blurBtn').classList.toggle('on', pr.full_blur);
+  $('#muteBtn').classList.toggle('on', pr.mute);
+  $('#pauseHint').textContent = !pr.on_air
+    ? 'Off air: all destinations are disconnected. Recording to disk continues. Press GO LIVE to reconnect the enabled destinations.'
+    : pr.paused
+    ? `Viewers see "${pr.paused_text}" with silence. Destinations stay connected.` + (pr.stop_raw_when_paused ? ' Raw destinations are stopped.' : '')
+    : 'Pause shows a slate + silence on the masked stream without disconnecting YouTube etc.';
+
+  const det = Object.entries(p.detections || {}).map(([k, v]) => `${v} ${k}`).join(', ') || 'nothing detected';
+  $('#outInfo').textContent = `${S.output.width}x${S.output.height} · ${p.fps} fps · ${fmtRate(S.output_bitrate_kbps)} · ${p.regions < 0 ? 'full-frame blur' : p.regions + ' blurred regions'} · ${det} · dropped ${p.dropped}`;
+  $('#rawInfo').textContent = S.ingest.online
+    ? `${ii.codec || '?'} ${ii.width || '?'}x${ii.height || '?'} · ${ii.fps || '…'} fps · ${fmtRate(S.ingest.bitrate_kbps)} · audio ${ii.audio || '?'} · received ${fmtBytes(S.ingest.bytes || 0)}`
+      + (S.ingest.errors ? ` · ${S.ingest.errors} corrupt frames` : '')
+    : 'Glasses not connected';
+
+  $('#ingUrl').textContent = S.ingest.url; $('#ingSrv').textContent = S.ingest.server; $('#ingKey').textContent = S.ingest.key;
+  renderDests();
+  const ra = S.recording.active;
+  $('#recStatus').innerHTML = ['raw', 'blurred'].filter(k => S.recording[k]).map(k =>
+    `<span class="pill"><span class="dot ${ra[k] ? 'bad' : ''}"></span>${k === 'raw' ? 'original' : 'masked'}: <b>${ra[k] ? 'REC' : 'armed (no stream)'}</b></span>`).join(' ')
+    || 'Recording disabled';
+  if (!formsFilled) { fillForms(); formsFilled = true; }
+  if (S.ingest.online && !$('#zoneImg').getAttribute('src')) $('#zoneSnap').onclick();
+  for (const k of ['raw', 'blurred']) previews[k].tick();
+}
+
+// ------------------------------------------------------------------ top controls
+$('#pauseBtn').onclick = async () => {
+  if (!S) return;
+  await post('/api/privacy', {paused: !S.privacy.paused}); S.privacy.paused = !S.privacy.paused; render();
+};
+$('#airBtn').onclick = async () => {
+  if (!S) return;
+  const next = !S.privacy.on_air;
+  if (!next && !confirm('Stop live? This disconnects ALL destinations (YouTube may end the broadcast). Recording continues.')) return;
+  await post('/api/privacy', {on_air: next}); S.privacy.on_air = next; destSig = ''; render();
+};
+$('#blurBtn').onclick = async () => { await post('/api/privacy', {full_blur: !S.privacy.full_blur}); S.privacy.full_blur = !S.privacy.full_blur; render(); };
+$('#muteBtn').onclick = async () => { await post('/api/privacy', {mute: !S.privacy.mute}); S.privacy.mute = !S.privacy.mute; render(); };
+
+// ------------------------------------------------------------------ destinations
+let destSig = '';
+function renderDests() {
+  const sig = JSON.stringify([S.destinations, S.privacy.on_air, S.privacy.paused]);
+  if (sig === destSig) return;
+  destSig = sig;
+  const box = $('#dests');
+  if (!S.destinations.length) { box.innerHTML = '<p class="mut">No destinations yet.</p>'; return; }
+  box.innerHTML = S.destinations.map(d => {
+    const st = d.status;
+    const state = !d.enabled ? 'off' : !S.privacy.on_air ? 'off air' : st ? st.state : 'waiting';
+    const dot = state === 'running' ? 'ok' : state === 'off' || state === 'off air' ? '' : state === 'backoff' ? 'bad' : 'warn';
+    const extra = st && st.state === 'running' ? ` · ${fmtDur(st.uptime)} · ${st.bitrate}` : '';
+    const pausedRaw = d.enabled && d.source === 'raw' && S.privacy.paused && S.privacy.stop_raw_when_paused ? ' (stopped: paused)' : '';
+    return `<div class="dest">
+      <div style="min-width:0">
+        <div class="row"><b>${esc(d.name)}</b><span class="tag ${d.source}">${d.source === 'raw' ? 'RAW · UNMASKED' : 'MASKED'}</span>
+          <span class="pill"><span class="dot ${dot}"></span>${state}${pausedRaw}${extra}</span></div>
+        <div class="url">${esc(d.url_masked)}</div>
+        ${st && st.log.length ? `<details><summary>log</summary><pre class="log">${esc(st.log.join('\n'))}</pre></details>` : ''}
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <label class="switch" title="on/off"><input type="checkbox" ${d.enabled ? 'checked' : ''} data-toggle="${d.id}"><span></span></label>
+        <button class="sm" data-src="${d.id}">${d.source === 'raw' ? '→ masked' : '→ raw'}</button>
+        <button class="sm danger" data-del="${d.id}">✕</button>
+      </div></div>`;
+  }).join('');
+  $$('[data-toggle]').forEach(el => el.onchange = async () => {
+    const d = S.destinations.find(x => x.id === el.dataset.toggle);
+    if (el.checked && d.source === 'raw' && !confirm(`"${d.name}" will receive the RAW, UNMASKED video. Continue?`)) { el.checked = false; return; }
+    await api('/api/destinations/' + d.id, {method: 'PUT', body: {enabled: el.checked}});
+  });
+  $$('[data-src]').forEach(el => el.onclick = async () => {
+    const d = S.destinations.find(x => x.id === el.dataset.src);
+    const next = d.source === 'raw' ? 'blurred' : 'raw';
+    if (next === 'raw' && !confirm(`Switch "${d.name}" to the RAW, UNMASKED video?`)) return;
+    await api('/api/destinations/' + d.id, {method: 'PUT', body: {source: next}});
+  });
+  $$('[data-del]').forEach(el => el.onclick = async () => {
+    const d = S.destinations.find(x => x.id === el.dataset.del);
+    if (confirm(`Delete "${d.name}"?`)) await api('/api/destinations/' + d.id, {method: 'DELETE'});
+  });
+}
+$('#nPreset').onchange = e => {
+  if (e.target.value) { $('#nServer').value = e.target.value; if (!$('#nName').value) $('#nName').value = e.target.selectedOptions[0].text; }
+};
+$('#addDest').onclick = async () => {
+  const server = $('#nServer').value.trim().replace(/\/+$/, ''), key = $('#nKey').value.trim();
+  const source = $('#nSource').value;
+  if (!server) return alert('Server URL required');
+  if (source === 'raw' && !confirm('This destination will receive the RAW, UNMASKED video. Continue?')) return;
+  await post('/api/destinations', {name: $('#nName').value || 'destination', url: key ? `${server}/${key}` : server, source, enabled: false});
+  $('#nKey').value = ''; $('#nName').value = ''; $('#nServer').value = ''; $('#nPreset').value = ''; $('#addBox').open = false;
+};
+
+// ------------------------------------------------------------------ settings forms
+function fillForms() {
+  const pr = S.privacy;
+  $('#screenChecks').innerHTML = S.screen_classes.map(c =>
+    `<label class="chk"><input type="checkbox" data-screen="${c}" ${pr.screens.includes(c) ? 'checked' : ''}> ${c}</label>`).join('');
+  $$('[data-screen]').forEach(el => el.onchange = () =>
+    savePrivacy({screens: $$('[data-screen]').filter(x => x.checked).map(x => x.dataset.screen)}));
+  $$('[data-p]').forEach(el => {
+    const k = el.dataset.p;
+    if (el.type === 'checkbox') el.checked = pr[k]; else el.value = pr[k];
+    const out = $(`[data-v="${k}"]`); if (out) out.textContent = pr[k];
+    el.oninput = () => { const o = $(`[data-v="${k}"]`); if (o) o.textContent = el.value; };
+    el.onchange = () => savePrivacy({[k]: el.type === 'checkbox' ? el.checked : el.type === 'range' || el.tagName === 'SELECT' && !isNaN(el.value) ? Number(el.value) : el.value});
+  });
+  $$('[data-r]').forEach(el => {
+    const k = el.dataset.r;
+    if (el.type === 'checkbox') el.checked = S.recording[k]; else el.value = S.recording[k];
+    el.onchange = () => post('/api/recording', {[k]: el.type === 'checkbox' ? el.checked : Number(el.value)});
+  });
+  $$('[data-o]').forEach(el => el.value = S.output[el.dataset.o]);
+  $('#pubHost').value = S.public_host;
+  $('#recPath').value = S.recording.path;
+  zones = pr.zones.map(z => [...z]); drawZones();
+}
+async function savePrivacy(patch) { const r = await post('/api/privacy', patch); Object.assign(S.privacy, r); }
+$('#saveOut').onclick = () => {
+  const b = {}; $$('[data-o]').forEach(el => b[el.dataset.o] = Number(el.value));
+  post('/api/output', b);
+};
+$('#saveRecPath').onclick = async () => {
+  const r = await post('/api/recording', {path: $('#recPath').value.trim()});
+  $('#recPath').value = r.path; loadRecs();
+};
+$('#saveHost').onclick = () => post('/api/server', {public_host: $('#pubHost').value.trim()});
+$('#regenKey').onclick = async () => {
+  if (confirm('Generate a new stream key? The glasses must be reconfigured with the new URL.')) await post('/api/server', {regenerate_key: true});
+};
+$$('[data-copy]').forEach(b => b.onclick = () => {
+  const t = $('#' + b.dataset.copy).textContent;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => b.textContent = 'Copied', () => prompt('Copy:', t));
+  setTimeout(() => b.textContent = 'Copy', 1500);
+});
+
+// ------------------------------------------------------------------ recordings
+async function loadRecs() {
+  try {
+    const r = await (await fetch('/api/recordings')).json();
+    $('#recList').innerHTML = r.files.map(f => `<tr><td><span class="tag ${f.source}">${f.source === 'raw' ? 'ORIGINAL' : 'MASKED'}</span> <a href="/recordings/${f.name.split('/').map(encodeURIComponent).join('/')}">${esc(f.label)}</a></td>
+      <td>${fmtBytes(f.size)}</td><td><button class="sm danger" data-rdel="${esc(f.name)}" data-label="${esc(f.label)}">✕</button></td></tr>`).join('')
+      + `<tr><td class="mut" colspan="3">${esc(r.dir)} · ${r.files.length} files · ${fmtBytes(r.total)} used · ${fmtBytes(r.free)} free</td></tr>`;
+    // 1080p at ~6 Mbit/s is ~2.7 GB/hour per recorded stream
+    const low = r.free < 20e9;
+    $('#diskWarn').classList.toggle('hidden', !low);
+    $('#diskWarn').textContent = low ? `Low disk space: only ${fmtBytes(r.free)} free in ${r.dir} (about ${(r.free / 2.7e9).toFixed(1)} h of recording).` : '';
+    $$('[data-rdel]').forEach(b => b.onclick = async () => {
+      if (confirm('Delete ' + b.dataset.label + '?')) { await api('/api/recordings/' + b.dataset.rdel.split('/').map(encodeURIComponent).join('/'), {method: 'DELETE'}); loadRecs(); }
+    });
+  } catch (e) {}
+}
+setInterval(loadRecs, 10000);
+
+// ------------------------------------------------------------------ zones editor
+let zones = [];
+const zw = $('#zoneWrap');
+function drawZones() {
+  $$('#zoneWrap .z').forEach(e => e.remove());
+  zones.forEach((z, i) => {
+    const d = document.createElement('div'); d.className = 'z';
+    Object.assign(d.style, {left: z[0]*100+'%', top: z[1]*100+'%', width: (z[2]-z[0])*100+'%', height: (z[3]-z[1])*100+'%'});
+    const b = document.createElement('button'); b.textContent = '✕';
+    b.onpointerdown = e => e.stopPropagation();
+    b.onclick = () => { zones.splice(i, 1); drawZones(); savePrivacy({zones}); };
+    d.appendChild(b); zw.appendChild(d);
+  });
+  $('#zoneCount').textContent = zones.length ? `${zones.length} zone(s)` : 'no zones';
+}
+let drag = null;
+const rel = e => { const r = zw.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+zw.onpointerdown = e => {
+  zw.setPointerCapture(e.pointerId);
+  const [x, y] = rel(e); drag = {x, y, el: document.createElement('div')}; drag.el.className = 'z'; zw.appendChild(drag.el);
+};
+zw.onpointermove = e => {
+  if (!drag) return; const [x, y] = rel(e);
+  Object.assign(drag.el.style, {left: Math.min(x, drag.x)*100+'%', top: Math.min(y, drag.y)*100+'%', width: Math.abs(x-drag.x)*100+'%', height: Math.abs(y-drag.y)*100+'%'});
+};
+zw.onpointerup = e => {
+  if (!drag) return; const [x, y] = rel(e);
+  const z = [Math.min(x, drag.x), Math.min(y, drag.y), Math.max(x, drag.x), Math.max(y, drag.y)];
+  drag.el.remove(); drag = null;
+  if (z[2]-z[0] > 0.01 && z[3]-z[1] > 0.01) { zones.push(z.map(v => +v.toFixed(4))); drawZones(); savePrivacy({zones}); }
+};
+$('#zoneSnap').onclick = () => { $('#zoneImg').src = '/api/snapshot/raw.jpg?width=960&t=' + Date.now(); };
+$('#zoneImg').onerror = () => { setTimeout(() => $('#zoneImg').removeAttribute('src'), 5000); };
+$('#zoneClear').onclick = () => { if (confirm('Remove all zones?')) { zones = []; drawZones(); savePrivacy({zones}); } };
+
+// ------------------------------------------------------------------ previews
+// "auto" = WebRTC (low latency, needs UDP 8189 reachable) falling back to MJPEG.
+class Preview {
+  constructor(kind) {
+    this.kind = kind; this.box = $('#pv-' + kind);
+    this.mode = localStorage.getItem('pv-' + kind) || 'auto';
+    this.cur = null; this.pc = null; this.loc = null; this.retryAt = 0;
+    const seg = $(`.seg[data-prev="${kind}"]`);
+    seg.innerHTML = ['auto', 'webrtc', 'mjpeg', 'off'].map(m => `<button data-m="${m}">${m === 'auto' ? 'Auto' : m === 'webrtc' ? 'WebRTC' : m === 'mjpeg' ? 'MJPEG' : 'Off'}</button>`).join('');
+    seg.querySelectorAll('button').forEach(b => b.onclick = () => { this.mode = b.dataset.m; try { localStorage.setItem('pv-' + kind, this.mode); } catch (e) {} this.stop(); this.tick(); });
+    this.seg = seg;
+  }
+  available() { return this.kind === 'raw' ? S.ingest.online : S.blurred_online; }
+  tick() {
+    this.seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === this.mode));
+    const avail = this.available();
+    if (this.mode === 'off' || !avail) { if (this.cur) this.stop(); this.empty(this.mode === 'off' ? 'Preview off' : this.kind === 'raw' ? 'No signal' : 'No output'); return; }
+    if (this.cur) {
+      if (this.cur === 'webrtc' && this.pc && ['failed', 'closed'].includes(this.pc.connectionState)) this.fail();
+      return;
+    }
+    if (Date.now() < this.retryAt) return;
+    if (this.mode === 'mjpeg') this.mjpeg(); else this.webrtc();
+  }
+  empty(t) { if (!this.box.querySelector('.empty')) this.box.innerHTML = `<div class="empty">${t}</div>`; else this.box.querySelector('.empty').textContent = t; }
+  badge(t) { return `<span class="badge">${t}</span>`; }
+  mjpeg() {
+    this.cur = 'mjpeg';
+    this.box.innerHTML = this.badge('MJPEG') + `<img src="/api/mjpeg/${this.kind}?fps=10&t=${Date.now()}" alt="">`;
+    this.box.querySelector('img').onerror = () => { this.stop(); this.retryAt = Date.now() + 3000; };
+  }
+  async webrtc() {
+    this.cur = 'webrtc';
+    const pc = this.pc = new RTCPeerConnection();
+    pc.addTransceiver('video', {direction: 'recvonly'});
+    pc.addTransceiver('audio', {direction: 'recvonly'});
+    this.box.innerHTML = this.badge('WebRTC · connecting') + '<video autoplay muted playsinline></video>';
+    const v = this.box.querySelector('video');
+    pc.ontrack = e => { if (e.track.kind === 'video') v.srcObject = e.streams[0] || new MediaStream([e.track]); };
+    pc.onconnectionstatechange = () => {
+      const b = this.box.querySelector('.badge'); if (b) b.textContent = 'WebRTC · ' + pc.connectionState;
+    };
+    const timer = setTimeout(() => { if (this.pc === pc && pc.connectionState !== 'connected') this.fail(); }, 7000);
+    try {
+      await pc.setLocalDescription(await pc.createOffer());
+      await new Promise(r => { if (pc.iceGatheringState === 'complete') r(); pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && r(); setTimeout(r, 1500); });
+      const r = await fetch('/api/whep/' + this.kind, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: pc.localDescription.sdp});
+      if (r.status !== 201) throw new Error('whep ' + r.status);
+      this.loc = r.headers.get('Location');
+      if (this.pc !== pc) return;
+      await pc.setRemoteDescription({type: 'answer', sdp: await r.text()});
+    } catch (e) { clearTimeout(timer); if (this.pc === pc) this.fail(); }
+  }
+  fail() {
+    const wasAuto = this.mode === 'auto';
+    this.stop();
+    if (wasAuto) this.mjpeg(); else this.retryAt = Date.now() + 3000;
+  }
+  stop() {
+    if (this.pc) { try { this.pc.close(); } catch (e) {} this.pc = null; }
+    if (this.loc) { fetch(this.loc, {method: 'DELETE'}).catch(() => {}); this.loc = null; }
+    this.box.querySelectorAll('img').forEach(i => i.src = '');
+    this.cur = null;
+  }
+}
+const previews = {raw: new Preview('raw'), blurred: new Preview('blurred')};
+poll(); loadRecs();
+</script>
+</body>
+</html>

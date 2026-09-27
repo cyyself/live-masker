@@ -1,0 +1,21 @@
+# systemd *user* service.
+#   mkdir -p ~/.config/systemd/user && cp deploy/live-masker.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now live-masker
+#   sudo loginctl enable-linger $USER      # keep running after logout / start at boot
+#   journalctl --user -u live-masker -f
+[Unit]
+Description=live-masker (privacy-masking RTMP relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/live-masker
+ExecStart=%h/.local/bin/uv run --frozen live-masker
+Restart=always
+RestartSec=3
+# stop everything we spawned (mediamtx, ffmpeg forwarders)
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
