@@ -24,8 +24,8 @@ UNUSED_ADDRESSES = {
 ALL_ACTIONS = [{"action": a} for a in ("publish", "read", "playback", "api", "metrics", "pprof")]
 
 
-def _die_with_parent() -> None:
-    """Make mediamtx exit if this process dies, so it never holds the ports as an orphan."""
+def die_with_parent() -> None:
+    """Child processes (mediamtx, ffmpeg) get SIGTERM when this process dies: no orphans."""
     import ctypes
     import signal
     ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
@@ -111,7 +111,7 @@ class MediaMTX:
             raise SystemExit(f"{binary} not found - run scripts/setup.sh first")
         logf = open(self.log_path, "ab")
         self.proc = subprocess.Popen([str(binary), str(self.cfg_path)], stdout=logf, stderr=subprocess.STDOUT,
-                                     cwd=DATA, preexec_fn=_die_with_parent)
+                                     cwd=DATA, preexec_fn=die_with_parent)
         log.info("mediamtx started (pid %s)", self.proc.pid)
 
     def stop(self) -> None:

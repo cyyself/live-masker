@@ -8,7 +8,7 @@ import time
 from collections import deque
 
 from .config import Store
-from .mediamtx import MediaMTX
+from .mediamtx import MediaMTX, die_with_parent
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,8 @@ class Job:
                "-copyinkf:a",
                *self.output_args]
         self.proc = await asyncio.create_subprocess_exec(
-            *cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            *cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            preexec_fn=die_with_parent)
         self.state, self.started_at = "running", time.time()
         self.log.append(f"{time.strftime('%H:%M:%S')} started")
         asyncio.create_task(self._pump_progress(self.proc))
@@ -71,6 +72,9 @@ class Job:
         self.next_try = time.time() + min(30, 2 ** min(self.failures, 5))
         self.state = "backoff" if rc != 0 and rc != 255 else "idle"
         self.log.append(f"{time.strftime('%H:%M:%S')} exited rc={rc} after {ran:.0f}s")
+        if rc not in (0, 255) and ran < 15 and any("Broken pipe" in l for l in list(self.log)[-6:]):
+            self.log.append("hint: the platform accepted the connection, then closed it. Usually the stream key / "
+                            "live session is not accepted (live room not started or already ended, key in use elsewhere).")
         self.proc = None
 
     async def stop(self) -> None:
@@ -95,6 +99,9 @@ class RelayManager:
     def __init__(self, store: Store, mtx: MediaMTX):
         self.store, self.mtx = store, mtx
         self.jobs: dict[str, Job] = {}
+        # reconcile() is called from the loop and from API handlers; without this lock two
+        # concurrent calls could each start an ffmpeg for the same destination (one untracked).
+        self._lock = asyncio.Lock()
 
     def _desired(self) -> dict[str, tuple[str, list[str], str]]:
         priv = self.store.get("privacy")
@@ -121,6 +128,10 @@ class RelayManager:
             await asyncio.sleep(0.5)
 
     async def reconcile(self) -> None:
+        async with self._lock:
+            await self._reconcile()
+
+    async def _reconcile(self) -> None:
         want = self._desired()
         for key in list(self.jobs):
             if key not in want:
@@ -144,5 +155,7 @@ class RelayManager:
         return None
 
     async def stop_all(self) -> None:
-        for job in list(self.jobs.values()):
+        async with self._lock:
+            jobs = list(self.jobs.values())
+        for job in jobs:
             await job.stop()
