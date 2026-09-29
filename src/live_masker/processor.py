@@ -8,7 +8,7 @@ Masking and encoding run in separate threads so a frame's cost is max(mask, enco
 rather than their sum.
 
 Broadcast delay: masked frames wait `delay_seconds` in a buffer before they are encoded.
-Pause / Full blur / Mute apply to a frame if they were on at ANY moment between its capture
+Pause / Full blur / Mute / Blur+Mute apply to a frame if they were on at ANY moment between its capture
 and its release: pressing Pause also removes the last seconds viewers haven't seen yet, and
 Resume never releases anything that was captured or buffered while paused. (Local recording
 of the original is not delayed.)
@@ -38,6 +38,7 @@ import numpy as np
 from .config import MODELS, Store
 from .detector import Detector, Tracker, blur_full, blur_region
 from .mediamtx import MediaMTX
+from .text import draw_caption
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +50,9 @@ MAX_DELAY = 60.0            # s; 60 s of 1080p BGR frames is ~11 GB of RAM
 AUDIO_TOLERANCE = 2400      # samples (50 ms) of drift tolerated before trim / fill
 
 
-def switches(p: dict) -> tuple[bool, bool, bool]:
-    return bool(p["paused"]), bool(p["full_blur"]), bool(p["mute"])
+def switches(p: dict) -> tuple[bool, bool, bool, bool]:
+    """Privacy switches that are sticky over the delay buffer."""
+    return bool(p["paused"]), bool(p["full_blur"]), bool(p["mute"]), bool(p["blur_mute"])
 
 
 def letterbox(img: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -69,9 +71,7 @@ def make_slate(w: int, h: int, text: str) -> np.ndarray:
     img = np.zeros((h, w, 3), np.uint8)
     grad = np.linspace(40, 15, h, dtype=np.float32)[:, None]
     img[:] = np.stack([grad * 1.3, grad * 0.9, grad * 0.7], axis=-1).astype(np.uint8)
-    font, scale, th = cv2.FONT_HERSHEY_DUPLEX, h / 540, max(2, h // 270)
-    (tw, tht), _ = cv2.getTextSize(text, font, scale, th)
-    cv2.putText(img, text, ((w - tw) // 2, (h + tht) // 2), font, scale, (235, 235, 235), th, cv2.LINE_AA)
+    draw_caption(img, text, box=False)
     return img
 
 
@@ -87,7 +87,7 @@ class Processor:
         self._restart_output = threading.Event()
         self._slates: dict[str, np.ndarray] = {}
         # delay buffer shared by masker (producer) and writer (consumer). Entries:
-        # [release_wall, kind, payload, t_in, sid, [paused, full_blur, mute]], arrival order.
+        # [release_wall, kind, payload, t_in, sid, [paused, full_blur, mute, blur_mute]], arrival order.
         # The switch flags are sticky: once set while buffered they stay set.
         self._delayq: deque = deque()
         self._dq_cv = threading.Condition()
@@ -351,7 +351,7 @@ class Processor:
                     self.stats["buffered_s"] = round(max(0.0, dq[-1][0] - dq[0][0]), 1) if dq else 0.0
 
                 # release what is due (encoding happens outside the lock)
-                for rel, kind, payload, t_in, sid, (paused, full_blur, mute) in due:
+                for rel, kind, payload, t_in, sid, (paused, full_blur, mute, blur_mute) in due:
                     if now - rel > 1.0:          # delay was shortened: skip what is overdue
                         continue
                     if kind == "v":
@@ -364,6 +364,11 @@ class Processor:
                         if paused:
                             self.stats["mode"] = "paused"
                             frame = self._slate("paused", p["paused_text"], W, H)
+                        elif blur_mute:
+                            self.stats["mode"] = "blur_mute"
+                            frame = payload.copy()
+                            blur_full(frame)
+                            draw_caption(frame, p["blur_mute_text"])
                         elif full_blur:
                             self.stats["mode"] = "live"
                             frame = payload.copy()
@@ -386,7 +391,7 @@ class Processor:
                             silence_until(start / AUDIO_RATE)
                         elif start < a_next - AUDIO_TOLERANCE:
                             arr = arr[:, min(arr.shape[1], a_next - start):]
-                        if paused or mute:
+                        if paused or mute or blur_mute:
                             arr = np.zeros_like(arr)
                         emit_audio(arr)
 

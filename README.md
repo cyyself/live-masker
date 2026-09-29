@@ -34,13 +34,17 @@ The processor is built to fail closed:
 | **Pause** | "Paused" slate + silence; masked destinations stay connected; raw destinations are stopped |
 | **Full blur** | Whole frame blurred, audio kept |
 | **Mute** | Silence instead of the microphone |
+| **Blur + Mute** | Whole frame blurred, silence, and a caption you type in the UI (any language, multi-line) |
 | Glasses lose signal | "Reconnecting…" slate + silence; destinations stay connected, stream resumes automatically |
 
-Pause, Full blur and Mute apply to every frame that was captured or still buffered while
-they were on. Pressing Pause therefore also removes the last *delay* seconds that viewers
+Pause, Full blur, Mute and Blur + Mute apply to every frame that was captured or still
+buffered while they were on. Pressing Pause therefore also removes the last *delay* seconds that viewers
 have not seen yet, and Resume never releases anything captured or buffered while paused.
 
-Pause, Full blur and Mute only affect what goes **upstream**. The original recording keeps
+Slate and caption texts are rendered with a CJK-capable system font (Noto Sans CJK,
+WenQuanYi Zen Hei, ... or `LM_FONT=/path/to/font`), so Chinese and Japanese work.
+
+These switches only affect what goes **upstream**. The original recording keeps
 running from the first packet of every connection, regardless of these switches.
 
 Raw destinations send the **unmasked**, **undelayed** camera feed; the UI marks them in red and asks for
@@ -101,7 +105,7 @@ Don't run the proxy on the live-masker host itself. mediamtx trusts connections 
    - lower confidence → blurs more (more false positives, fewer leaks)
    - larger *hold* / *grow* → steadier blur when objects are briefly lost
    - draw *always-blur zones*, e.g. where your handlebar phone mount appears
-4. During the ride, use **Pause**, **Full blur** or **Mute** from your phone.
+4. During the ride, use **Pause**, **Full blur**, **Mute** or **Blur + Mute** from your phone.
 
 Recordings are fragmented MP4 (crash-safe), segmented every 30 min and never deleted
 automatically. They go to `data/recordings/` unless you set another absolute folder in the

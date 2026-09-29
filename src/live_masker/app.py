@@ -132,7 +132,7 @@ def state(request: Request):
 
 # ---------------------------------------------------------------- settings
 PRIVACY_TYPES = {
-    "on_air": bool, "paused": bool, "full_blur": bool, "mute": bool, "faces": bool, "plates": bool,
+    "on_air": bool, "paused": bool, "full_blur": bool, "mute": bool, "blur_mute": bool, "blur_mute_text": str, "faces": bool, "plates": bool,
     "stop_raw_when_paused": bool, "plate_conf": float, "plate_imgsz": int,
     "delay_seconds": float, "face_conf": float, "obj_conf": float, "pad": float, "hold_seconds": float, "grow_per_s": float,
     "face_imgsz": int, "obj_imgsz": int, "min_size": int,
@@ -156,9 +156,9 @@ async def set_privacy(patch: dict):
         clean["screens"] = [c for c in clean["screens"] if c in COCO_SCREEN_CLASSES]
     if "zones" in clean:
         clean["zones"] = [[min(1.0, max(0.0, float(v))) for v in z[:4]] for z in clean["zones"] if len(z) >= 4]
-    for k in ("paused_text", "lost_text"):   # slate font is ASCII-only
-        if k in clean:
-            clean[k] = clean[k].encode("ascii", "replace").decode()[:60]
+    for k, limit in (("paused_text", 60), ("lost_text", 60), ("blur_mute_text", 200)):
+        if k in clean:   # rendered with a CJK font, so any language works; keep it short
+            clean[k] = "\n".join(clean[k].replace("\r", "").splitlines()[:6])[:limit]
     res = store.update("privacy", clean)
     await relay.reconcile()   # pausing must stop raw forwards *now*
     return res

@@ -39,6 +39,8 @@ DEFAULTS: dict = {
         "paused": False,            # show slate + silence instead of the camera
         "full_blur": False,         # blur the entire frame (panic mode)
         "mute": False,              # replace audio with silence
+        "blur_mute": False,         # full blur + silence + the caption below
+        "blur_mute_text": "Privacy mode - back soon",
         "faces": True,
         "screens": ["cell phone", "laptop"],
         "plates": True,             # vehicle license plates
