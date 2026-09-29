@@ -33,8 +33,7 @@ label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .mut{color:var(--mut);font-size:13px}
-.controls{display:grid;grid-template-columns:1.3fr 1.3fr 1fr 1fr 1.2fr;gap:10px}
-@media(max-width:900px){.controls{grid-template-columns:1fr 1fr 1fr}}
+.controls{display:grid;grid-template-columns:1.3fr 1.3fr 1fr 1fr;gap:10px}
 @media(max-width:560px){.controls{grid-template-columns:1fr 1fr}}
 textarea{font:inherit;color:var(--fg);background:#10131a;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;resize:vertical}
 #airBtn.on{background:#1f2937;border-color:#6b7280;color:#fff}
@@ -99,13 +98,12 @@ td a{color:var(--acc)}
       <button id="pauseBtn" class="big">…</button>
       <button id="blurBtn" class="big tog">Full blur</button>
       <button id="muteBtn" class="big tog">Mute</button>
-      <button id="bmBtn" class="big tog">Blur + Mute</button>
     </div>
     <div style="margin-top:10px">
-      <label for="bmText">Text shown on screen during Blur + Mute (any language, Enter for a new line)</label>
+      <label for="blurText">Text shown on screen during Full blur (any language, Enter for a new line, empty = no text)</label>
       <div class="row" style="flex-wrap:nowrap;align-items:stretch">
-        <textarea id="bmText" rows="2" maxlength="200"></textarea>
-        <button id="bmSave" class="sm">Save text</button>
+        <textarea id="blurText" rows="2" maxlength="200"></textarea>
+        <button id="blurSave" class="sm">Save text</button>
       </div>
     </div>
     <p class="mut" id="pauseHint" style="margin:10px 0 0"></p>
@@ -257,7 +255,7 @@ function render() {
   $('#secErr').textContent = S.security_error ? 'SECURITY: ' + S.security_error : '';
   $('#tIngest').textContent = S.ingest.online ? 'online' : 'offline';
   $('#dIngest').className = 'dot ' + (S.ingest.online ? 'ok' : 'bad');
-  const modeTxt = {live: 'LIVE (masked)', blur_mute: 'BLUR + MUTE', paused: 'PAUSED', lost: 'signal lost', waiting: 'waiting', starting: 'starting', buffering: 'buffering (delay)'}[p.mode] || p.mode;
+  const modeTxt = {live: 'LIVE (masked)', full_blur: 'LIVE (full blur)', paused: 'PAUSED', lost: 'signal lost', waiting: 'waiting', starting: 'starting', buffering: 'buffering (delay)'}[p.mode] || p.mode;
   $('#tMode').textContent = pr.full_blur && p.mode === 'live' ? 'LIVE (full blur)' : modeTxt;
   $('#dMode').className = 'dot ' + ({live: 'ok', paused: 'warn'}[p.mode] || 'bad');
   $('#tFps').textContent = p.fps;
@@ -278,13 +276,12 @@ function render() {
   pb.className = 'big ' + (pr.paused ? 'paused' : 'live');
   $('#blurBtn').classList.toggle('on', pr.full_blur);
   $('#muteBtn').classList.toggle('on', pr.mute);
-  $('#bmBtn').classList.toggle('on', pr.blur_mute);
   $('#pauseHint').textContent = !pr.on_air
     ? 'Off air: all destinations are disconnected. Recording to disk continues. Press GO LIVE to reconnect the enabled destinations.'
     : pr.paused
     ? `Viewers see "${pr.paused_text}" with silence. Destinations stay connected.` + (pr.stop_raw_when_paused ? ' Raw destinations are stopped.' : '')
     : 'Pause shows a slate + silence on the masked stream without disconnecting YouTube etc.'
-      + (pr.delay_seconds ? ` Viewers are ${pr.delay_seconds} s behind: Pause, Full blur, Mute and Blur + Mute also cover those last ${pr.delay_seconds} s.` : '');
+      + (pr.delay_seconds ? ` Viewers are ${pr.delay_seconds} s behind: Pause, Full blur and Mute also cover those last ${pr.delay_seconds} s.` : '');
 
   const det = Object.entries(p.detections || {}).map(([k, v]) => `${v} ${k}`).join(', ') || 'nothing detected';
   $('#outInfo').textContent = `${S.output.width}x${S.output.height} · ${p.fps} fps · ${fmtRate(S.output_bitrate_kbps)} · ${p.regions < 0 ? 'full-frame blur' : p.regions + ' blurred regions'} · ${det} · dropped ${p.dropped}`;
@@ -315,14 +312,13 @@ $('#airBtn').onclick = async () => {
   if (!next && !confirm('Stop live? This disconnects ALL destinations (YouTube may end the broadcast). Recording continues.')) return;
   await post('/api/privacy', {on_air: next}); S.privacy.on_air = next; destSig = ''; render();
 };
-$('#blurBtn').onclick = async () => { await post('/api/privacy', {full_blur: !S.privacy.full_blur}); S.privacy.full_blur = !S.privacy.full_blur; render(); };
-$('#bmBtn').onclick = async () => {
-  const next = !S.privacy.blur_mute;
-  const text = $('#bmText').value;
-  await post('/api/privacy', next && text !== S.privacy.blur_mute_text ? {blur_mute: next, blur_mute_text: text} : {blur_mute: next});
-  S.privacy.blur_mute = next; render();
+$('#blurBtn').onclick = async () => {
+  const next = !S.privacy.full_blur;
+  const text = $('#blurText').value;   // turning blur on also saves unsaved caption text
+  await post('/api/privacy', next && text !== S.privacy.blur_text ? {full_blur: next, blur_text: text} : {full_blur: next});
+  S.privacy.full_blur = next; if (next) S.privacy.blur_text = text; render();
 };
-$('#bmSave').onclick = async () => { const r = await post('/api/privacy', {blur_mute_text: $('#bmText').value}); S.privacy.blur_mute_text = r.blur_mute_text; $('#bmText').value = r.blur_mute_text; };
+$('#blurSave').onclick = async () => { const r = await post('/api/privacy', {blur_text: $('#blurText').value}); S.privacy.blur_text = r.blur_text; $('#blurText').value = r.blur_text; };
 $('#muteBtn').onclick = async () => { await post('/api/privacy', {mute: !S.privacy.mute}); S.privacy.mute = !S.privacy.mute; render(); };
 
 // ------------------------------------------------------------------ destinations
@@ -401,7 +397,7 @@ function fillForms() {
   });
   $$('[data-o]').forEach(el => el.value = S.output[el.dataset.o]);
   $('#pubHost').value = S.public_host;
-  $('#bmText').value = pr.blur_mute_text;
+  $('#blurText').value = pr.blur_text;
   $('#recPath').value = S.recording.path;
   zones = pr.zones.map(z => [...z]); drawZones();
 }
