@@ -35,15 +35,19 @@ DEFAULTS: dict = {
     "output": {"width": 1920, "height": 1080, "fps": 30, "bitrate_kbps": 6000, "audio_kbps": 128},
     "privacy": {
         "on_air": True,             # master switch: False = every upstream RTMP connection is closed
+        "delay_seconds": 10,        # broadcast delay for the masked stream (0-60 s)
         "paused": False,            # show slate + silence instead of the camera
         "full_blur": False,         # blur the entire frame (panic mode)
         "mute": False,              # replace audio with silence
         "faces": True,
         "screens": ["cell phone", "laptop"],
+        "plates": True,             # vehicle license plates
         "face_conf": 0.2,
         "obj_conf": 0.2,
+        "plate_conf": 0.2,
         "face_imgsz": 1280,
         "obj_imgsz": 960,
+        "plate_imgsz": 1280,
         "blur_mode": "blur",        # blur | pixelate | solid
         "pad": 0.25,                # fraction of box size added on every side
         "hold_seconds": 1.0,        # keep blurring after an object is lost
@@ -56,7 +60,8 @@ DEFAULTS: dict = {
     },
     # path: absolute folder for recordings ("" = data/recordings)
     "recording": {"raw": True, "blurred": False, "segment_minutes": 30, "path": ""},
-    "models": {"face": "yolov11s-face.pt", "object": "yolo11s.pt", "device": "cuda:0"},
+    "models": {"face": "yolov11s-face.pt", "object": "yolo11s.pt",
+               "plate": "license-plate-finetune-v1m.pt", "device": "cuda:0"},
     "destinations": [],             # {id, name, url, source: raw|blurred, enabled}
 }
 

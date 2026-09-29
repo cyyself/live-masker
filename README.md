@@ -1,8 +1,8 @@
 # live-masker
 
 Privacy-masking relay for live streams from smart glasses (e.g. Rokid). The glasses push
-RTMP to this server; an RTX-class GPU finds **faces** and **phone / laptop screens**, blurs
-them, and the masked stream is forwarded to any number of RTMP destinations (YouTube,
+RTMP to this server; an RTX-class GPU finds **faces**, **license plates** and **phone / laptop
+screens**, blurs them, and the masked stream is forwarded to any number of RTMP destinations (YouTube,
 Twitch, Bilibili, …). The original is recorded to disk. Everything is controlled from a
 mobile-friendly web UI with live previews and a one-tap **Pause**.
 
@@ -10,8 +10,8 @@ mobile-friendly web UI with live previews and a one-tap **Pause**.
 Rokid glasses ──RTMP──► [HAProxy on cloud] ──VPN──► mediamtx (:1935, secret path live/<key>)
                                                         │   └── records original → data/recordings/live/<key>/*.mp4
                                                         ▼ rtsp (localhost)
-                                              processor (GPU): decode → YOLO faces + COCO screens
-                                              → tracker → blur → NVENC  (audio re-encoded, mute-able)
+                                              processor (GPU): decode → YOLO faces + plates + COCO screens
+                                              → tracker → blur → delay buffer → NVENC  (audio re-encoded, mute-able)
                                                         ▼ rtsp (localhost)
                                                    mediamtx path "blurred"
                                                         ▼
@@ -25,20 +25,25 @@ The processor is built to fail closed:
 
 | Situation | What viewers get |
 |---|---|
-| Face / phone / laptop detected | Blurred immediately (no confirmation frames), box padded 25 % |
+| Face / license plate / phone / laptop detected | Blurred immediately (no confirmation frames), box padded 25 % |
 | Object missed for a few frames | Still blurred for `hold_seconds` (1 s), following its last motion, box growing while lost |
 | Always-blur zones | Rectangles you draw in the UI, blurred on every frame |
 | Models still loading / detector error | Whole frame blurred |
 | Processing falls behind | Old frames are **dropped**, never passed through unprocessed |
+| **Broadcast delay** (default 10 s, 0-60 s adjustable) | Viewers see the masked stream this much later, which gives you time to react |
 | **Pause** | "Paused" slate + silence; masked destinations stay connected; raw destinations are stopped |
 | **Full blur** | Whole frame blurred, audio kept |
 | **Mute** | Silence instead of the microphone |
 | Glasses lose signal | "Reconnecting…" slate + silence; destinations stay connected, stream resumes automatically |
 
+Pause, Full blur and Mute apply to every frame that was captured or still buffered while
+they were on. Pressing Pause therefore also removes the last *delay* seconds that viewers
+have not seen yet, and Resume never releases anything captured or buffered while paused.
+
 Pause, Full blur and Mute only affect what goes **upstream**. The original recording keeps
 running from the first packet of every connection, regardless of these switches.
 
-Raw destinations send the **unmasked** camera feed; the UI marks them in red and asks for
+Raw destinations send the **unmasked**, **undelayed** camera feed; the UI marks them in red and asks for
 confirmation before enabling them.
 
 ## Setup
@@ -112,16 +117,26 @@ All settings are editable in the UI and saved to `data/config.json`
 (`server`, `output`, `privacy`, `recording`, `models`, `destinations`).
 Changing the stream key, ports or `bind_ip` restarts mediamtx.
 
-Models (`models/`): `yolov11s-face.pt` for faces
-([akanametov/yolo-face](https://github.com/akanametov/yolo-face)) and COCO `yolo11s.pt` for
-`cell phone` / `laptop` / `tv`. Both run at about 20 ms per 1080p frame on an RTX 3090.
+Models (`models/`), downloaded by `scripts/setup.sh`:
+
+| Model | Detects | Source |
+|---|---|---|
+| `yolov11s-face.pt` | faces | [akanametov/yolo-face](https://github.com/akanametov/yolo-face) |
+| `license-plate-finetune-v1m.pt` | license plates | [morsetechlab/yolov11-license-plate-detection](https://huggingface.co/morsetechlab/yolov11-license-plate-detection) (AGPL-3.0) |
+| `yolo11s.pt` (COCO) | `cell phone` / `laptop` / `tv` | [Ultralytics](https://github.com/ultralytics/ultralytics) |
+
+The three models run in parallel threads, about 23 ms per 1080p frame on an RTX 3090.
+The plate model was checked on Japanese street and parking-lot photos (white, yellow,
+green, diplomatic and kei-car plates, including small distant ones). It also fires on some
+shop signs; that only blurs a little extra.
 
 ## Limitations
 
 - Phone detection uses the generic COCO class, so a phone at an unusual angle or mostly
   covered by a hand can be missed. Tune the confidence, keep a generous hold time, and use
   zones for fixed mounts.
-- License plates, street signs with names, etc. are not detected.
+- Name plates on houses ("hyosatsu"), mailboxes and other text with personal names are not
+  detected. Pause (with the broadcast delay) is the tool for those.
 - Very small, distant faces (a few pixels) may not be detected; raising *face model input*
   to 1600 helps at the cost of GPU time.
 - WebRTC previews are video-only (AAC can't be carried over WebRTC); the forwarded streams have audio.

@@ -83,6 +83,7 @@ td a{color:var(--acc)}
     <span class="pill">FPS <b id="tFps">–</b></span>
     <span class="pill">Detect <b id="tDet">–</b></span>
     <span class="pill">Latency <b id="tLat">–</b></span>
+    <span class="pill" title="viewers see the masked stream this many seconds late; Pause / Full blur / Mute also cover what is still in the buffer">Delay <b id="tDelay">–</b></span>
     <span class="pill" id="pErr" title="detector/output errors">Errors <b id="tErr">0</b></span>
     <span class="pill">Model <b id="tModel">–</b></span>
   </div>
@@ -140,17 +141,21 @@ td a{color:var(--acc)}
       <h2>Masking</h2>
       <div class="row" style="margin-bottom:12px">
         <label class="chk"><input type="checkbox" data-p="faces"> Faces</label>
+        <label class="chk"><input type="checkbox" data-p="plates"> License plates</label>
         <span id="screenChecks" class="row"></span>
       </div>
       <div class="fields">
+        <div><label>Broadcast delay (s) <span data-v="delay_seconds"></span></label><input type="range" min="0" max="60" step="1" data-p="delay_seconds"></div>
         <div><label>Face confidence <span data-v="face_conf"></span></label><input type="range" min="0.05" max="0.8" step="0.01" data-p="face_conf"></div>
         <div><label>Phone/screen confidence <span data-v="obj_conf"></span></label><input type="range" min="0.05" max="0.8" step="0.01" data-p="obj_conf"></div>
+        <div><label>License plate confidence <span data-v="plate_conf"></span></label><input type="range" min="0.05" max="0.8" step="0.01" data-p="plate_conf"></div>
         <div><label>Padding <span data-v="pad"></span></label><input type="range" min="0" max="1" step="0.05" data-p="pad"></div>
         <div><label>Keep blurring after lost (s) <span data-v="hold_seconds"></span></label><input type="range" min="0" max="5" step="0.1" data-p="hold_seconds"></div>
         <div><label>Grow while lost (/s) <span data-v="grow_per_s"></span></label><input type="range" min="0" max="2" step="0.1" data-p="grow_per_s"></div>
         <div><label>Min box size (px) <span data-v="min_size"></span></label><input type="range" min="0" max="200" step="5" data-p="min_size"></div>
         <div><label>Face model input</label><select data-p="face_imgsz"><option>640</option><option>960</option><option>1280</option><option>1600</option></select></div>
         <div><label>Screen model input</label><select data-p="obj_imgsz"><option>640</option><option>960</option><option>1280</option></select></div>
+        <div><label>Plate model input</label><select data-p="plate_imgsz"><option>640</option><option>960</option><option>1280</option></select></div>
         <div><label>Style</label><select data-p="blur_mode"><option value="blur">Blur</option><option value="pixelate">Pixelate</option><option value="solid">Black box</option></select></div>
         <div><label>Paused text</label><input type="text" data-p="paused_text" maxlength="60"></div>
         <div><label>Signal-lost text</label><input type="text" data-p="lost_text" maxlength="60"></div>
@@ -242,7 +247,7 @@ function render() {
   $('#secErr').textContent = S.security_error ? 'SECURITY: ' + S.security_error : '';
   $('#tIngest').textContent = S.ingest.online ? 'online' : 'offline';
   $('#dIngest').className = 'dot ' + (S.ingest.online ? 'ok' : 'bad');
-  const modeTxt = {live: 'LIVE (masked)', paused: 'PAUSED', lost: 'signal lost', waiting: 'waiting', starting: 'starting'}[p.mode] || p.mode;
+  const modeTxt = {live: 'LIVE (masked)', paused: 'PAUSED', lost: 'signal lost', waiting: 'waiting', starting: 'starting', buffering: 'buffering (delay)'}[p.mode] || p.mode;
   $('#tMode').textContent = pr.full_blur && p.mode === 'live' ? 'LIVE (full blur)' : modeTxt;
   $('#dMode').className = 'dot ' + ({live: 'ok', paused: 'warn'}[p.mode] || 'bad');
   $('#tFps').textContent = p.fps;
@@ -250,6 +255,7 @@ function render() {
   $('#tIn').textContent = S.ingest.online && ii.width ? `${ii.height}p${Math.round(ii.fps) || '?'} · ${fmtRate(S.ingest.bitrate_kbps)}` : '–';
   $('#tDet').textContent = p.det_ms + ' ms';
   $('#tLat').textContent = p.latency_ms + ' ms';
+  $('#tDelay').textContent = pr.delay_seconds + ' s' + (pr.delay_seconds && p.buffered_s + 0.5 < pr.delay_seconds && S.ingest.online ? ` (filling ${p.buffered_s}s)` : '');
   $('#tErr').textContent = p.errors;
   $('#tModel').textContent = p.detector;
 
@@ -266,7 +272,8 @@ function render() {
     ? 'Off air: all destinations are disconnected. Recording to disk continues. Press GO LIVE to reconnect the enabled destinations.'
     : pr.paused
     ? `Viewers see "${pr.paused_text}" with silence. Destinations stay connected.` + (pr.stop_raw_when_paused ? ' Raw destinations are stopped.' : '')
-    : 'Pause shows a slate + silence on the masked stream without disconnecting YouTube etc.';
+    : 'Pause shows a slate + silence on the masked stream without disconnecting YouTube etc.'
+      + (pr.delay_seconds ? ` Viewers are ${pr.delay_seconds} s behind: Pause, Full blur and Mute also cover those last ${pr.delay_seconds} s.` : '');
 
   const det = Object.entries(p.detections || {}).map(([k, v]) => `${v} ${k}`).join(', ') || 'nothing detected';
   $('#outInfo').textContent = `${S.output.width}x${S.output.height} · ${p.fps} fps · ${fmtRate(S.output_bitrate_kbps)} · ${p.regions < 0 ? 'full-frame blur' : p.regions + ' blurred regions'} · ${det} · dropped ${p.dropped}`;

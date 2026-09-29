@@ -132,8 +132,9 @@ def state(request: Request):
 
 # ---------------------------------------------------------------- settings
 PRIVACY_TYPES = {
-    "on_air": bool, "paused": bool, "full_blur": bool, "mute": bool, "faces": bool, "stop_raw_when_paused": bool,
-    "face_conf": float, "obj_conf": float, "pad": float, "hold_seconds": float, "grow_per_s": float,
+    "on_air": bool, "paused": bool, "full_blur": bool, "mute": bool, "faces": bool, "plates": bool,
+    "stop_raw_when_paused": bool, "plate_conf": float, "plate_imgsz": int,
+    "delay_seconds": float, "face_conf": float, "obj_conf": float, "pad": float, "hold_seconds": float, "grow_per_s": float,
     "face_imgsz": int, "obj_imgsz": int, "min_size": int,
     "blur_mode": str, "paused_text": str, "lost_text": str, "screens": list, "zones": list,
 }
@@ -147,6 +148,8 @@ async def set_privacy(patch: dict):
         if typ is None:
             raise HTTPException(400, f"unknown field {k}")
         clean[k] = v if typ is list else typ(v)
+    if "delay_seconds" in clean:
+        clean["delay_seconds"] = min(60.0, max(0.0, clean["delay_seconds"]))
     if "blur_mode" in clean and clean["blur_mode"] not in ("blur", "pixelate", "solid"):
         raise HTTPException(400, "blur_mode")
     if "screens" in clean:

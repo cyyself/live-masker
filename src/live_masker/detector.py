@@ -1,4 +1,4 @@
-"""Face / screen detection, temporal tracking and blurring.
+"""Face / screen / license-plate detection, temporal tracking and blurring.
 
 Privacy first: every design choice here errs on the side of blurring too much.
   * Detections blur immediately (no "confirmation" frames).
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,19 +33,28 @@ class Det:
 
 
 class Detector:
-    """Runs a face model and a COCO model (for phones / screens) on the GPU."""
+    """Runs a face model, a COCO model (phones / screens) and a license-plate model on the GPU.
 
-    def __init__(self, models_dir: Path, face_model: str, object_model: str, device: str = "cuda:0"):
+    The models run in parallel threads (one thread per model instance, so each model is
+    only ever used by one thread): this overlaps their CPU pre/post-processing and keeps
+    all three within a 30 fps frame budget.
+    """
+
+    def __init__(self, models_dir: Path, face_model: str, object_model: str, plate_model: str,
+                 device: str = "cuda:0"):
         from ultralytics import YOLO  # imported lazily: heavy
 
         self.device = device
         self.quantize = 16 if device.startswith("cuda") else None
         self.face = YOLO(str(models_dir / face_model))
         self.obj = YOLO(str(models_dir / object_model))
+        self.plate = YOLO(str(models_dir / plate_model))
         self._lock = threading.Lock()
+        self._pool = ThreadPoolExecutor(3, thread_name_prefix="detect")
         warm = np.zeros((720, 1280, 3), np.uint8)
         for _ in range(2):
-            self.detect(warm, face_conf=0.3, obj_conf=0.3, classes=["cell phone"], face_imgsz=640, obj_imgsz=640)
+            self.detect(warm, face_conf=0.3, obj_conf=0.3, plate_conf=0.3, classes=["cell phone"],
+                        face_imgsz=640, obj_imgsz=640, plate_imgsz=640)
         log.info("detector ready on %s", device)
 
     def _run(self, model, frame, conf, imgsz, classes=None) -> list[tuple[np.ndarray, int, float]]:
@@ -60,18 +70,24 @@ class Detector:
         cf = b.conf.float().cpu().numpy()
         return [(xyxy[i], int(cls[i]), float(cf[i])) for i in range(len(xyxy))]
 
-    def detect(self, frame: np.ndarray, *, face_conf: float, obj_conf: float, classes: list[str],
-               face_imgsz: int, obj_imgsz: int, faces: bool = True) -> list[Det]:
-        out: list[Det] = []
+    def detect(self, frame: np.ndarray, *, face_conf: float, obj_conf: float, plate_conf: float,
+               classes: list[str], face_imgsz: int, obj_imgsz: int, plate_imgsz: int,
+               faces: bool = True, plates: bool = True) -> list[Det]:
+        names = {v: k for k, v in COCO_SCREEN_CLASSES.items()}
+        ids = [COCO_SCREEN_CLASSES[c] for c in classes if c in COCO_SCREEN_CLASSES]
         with self._lock:
+            futs = []
             if faces:
-                for box, _, cf in self._run(self.face, frame, face_conf, face_imgsz):
-                    out.append(Det(box, "face", cf))
-            ids = [COCO_SCREEN_CLASSES[c] for c in classes if c in COCO_SCREEN_CLASSES]
+                futs.append(("face", self._pool.submit(self._run, self.face, frame, face_conf, face_imgsz)))
             if ids:
-                names = {v: k for k, v in COCO_SCREEN_CLASSES.items()}
-                for box, c, cf in self._run(self.obj, frame, obj_conf, obj_imgsz, ids):
-                    out.append(Det(box, names.get(c, str(c)), cf))
+                futs.append(("obj", self._pool.submit(self._run, self.obj, frame, obj_conf, obj_imgsz, ids)))
+            if plates:
+                futs.append(("plate", self._pool.submit(self._run, self.plate, frame, plate_conf, plate_imgsz)))
+            out: list[Det] = []
+            for kind, fut in futs:          # .result() re-raises any model error -> caller fails closed
+                for box, c, cf in fut.result():
+                    label = names.get(c, str(c)) if kind == "obj" else kind
+                    out.append(Det(box, label, cf))
         return out
 
 
